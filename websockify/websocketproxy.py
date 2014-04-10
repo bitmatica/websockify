@@ -46,6 +46,8 @@ Traffic Legend:
         # for a valid target for it then
         if self.server.target_cfg:
             (self.server.target_host, self.server.target_port) = self.get_target(self.server.target_cfg, self.path)
+        if self.server.target_cfg_string:
+            (self.server.target_host, self.server.target_port) = self.get_target_string(self.server.target_cfg_string, self.path)
 
         # Connect to the target
         if self.server.wrap_cmd:
@@ -91,7 +93,7 @@ Traffic Legend:
         args = parse_qs(urlparse(path)[4]) # 4 is the query from url
 
         if not args.has_key('token') or not len(args['token']):
-            raise self.EClose("Token not present")
+            raise Exception("Token not present")
 
         token = args['token'][0].rstrip('\n')
 
@@ -115,8 +117,30 @@ Traffic Legend:
         if targets.has_key(token):
             return targets[token].split(':')
         else:
-            raise self.EClose("Token '%s' not found" % token)
+            raise Exception("Token '%s' not found" % token)
+    
+    def get_target_string(self, target_cfg_string, path):
+        """
+        Parses the path, extracts a token, and looks for a valid
+        target for that token in the string. Sets
+        target_host and target_port if successful
+        """
+        # The string contains the line
+        # in the form of token: host:port
 
+        token = path[1:] # Remove beginning slash
+        
+        targets = {}
+        ttoken, target = target_cfg_string.split(': ')
+        targets[ttoken] = target.strip()
+
+        self.vmsg("Target config: %s" % repr(targets))
+
+        if targets.has_key(token):
+            return targets[token].split(':')
+        else:
+            raise Exception("Token '%s' not found" % token)
+    
     def do_proxy(self, target):
         """
         Proxy client WebSocket to normal target socket.
@@ -196,6 +220,7 @@ class WebSocketProxy(websocket.WebSocketServer):
         self.unix_target    = kwargs.pop('unix_target', None)
         self.ssl_target     = kwargs.pop('ssl_target', None)
         self.target_cfg     = kwargs.pop('target_cfg', None)
+        self.target_cfg_string = kwargs.pop('target_cfg_string', None)
         # Last 3 timestamps command was run
         self.wrap_times    = [0, 0, 0]
 
@@ -357,6 +382,10 @@ def websockify_init():
             help="Configuration file containing valid targets "
             "in the form 'token: host:port' or, alternatively, a "
             "directory containing configuration files of this form")
+    parser.add_option("--target-config-string",
+            dest="target_cfg_string",
+            help="String containing valid target "
+            "in the form 'token: host:port'")
     parser.add_option("--libserver", action="store_true",
             help="use Python library SocketServer engine")
     (opts, args) = parser.parse_args()
@@ -365,7 +394,7 @@ def websockify_init():
         logging.getLogger(WebSocketProxy.log_prefix).setLevel(logging.DEBUG)
 
     # Sanity checks
-    if len(args) < 2 and not (opts.target_cfg or opts.unix_target):
+    if len(args) < 2 and not (opts.target_cfg or opts.unix_target or opts.target_cfg_string):
         parser.error("Too few arguments")
     if sys.argv.count('--'):
         opts.wrap_cmd = args[1:]
@@ -390,7 +419,7 @@ def websockify_init():
     try:    opts.listen_port = int(opts.listen_port)
     except: parser.error("Error parsing listen port")
 
-    if opts.wrap_cmd or opts.unix_target or opts.target_cfg:
+    if opts.wrap_cmd or opts.unix_target or opts.target_cfg or opts.target_cfg_string:
         opts.target_host = None
         opts.target_port = None
     else:
@@ -434,8 +463,10 @@ class LibProxyServer(ForkingMixIn, HTTPServer):
         self.unix_target    = kwargs.pop('unix_target', None)
         self.ssl_target     = kwargs.pop('ssl_target', None)
         self.target_cfg     = kwargs.pop('target_cfg', None)
+        self.target_cfg_string = kwargs.pop('target_cfg_string', None)
         self.daemon = False
         self.target_cfg = None
+        self.target_cfg_string = None
 
         # Server configuration
         listen_host    = kwargs.pop('listen_host', '')
