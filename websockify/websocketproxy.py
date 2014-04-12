@@ -133,7 +133,7 @@ Traffic Legend:
         targets = {}
         ttoken, target = target_cfg_string.split(': ')
         targets[ttoken] = target.strip()
-
+        
         self.vmsg("Target config: %s" % repr(targets))
 
         if targets.has_key(token):
@@ -279,6 +279,9 @@ class WebSocketProxy(websocket.WebSocketServer):
         if self.target_cfg:
             msg = "  - proxying from %s:%s to targets in %s" % (
                 self.listen_host, self.listen_port, self.target_cfg)
+        elif self.target_cfg_string:
+            msg = "  - proxying from %s:%s to targets in %s" % (
+                self.listen_host, self.listen_port, self.target_cfg_string)
         else:
             msg = "  - proxying from %s:%s to %s" % (
                 self.listen_host, self.listen_port, dst_string)
